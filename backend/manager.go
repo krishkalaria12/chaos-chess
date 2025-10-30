@@ -35,4 +35,14 @@ func (m *Manager) serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	player := NewPlayer(conn, nil)
+	m.addPlayer(player)
+}
+
+func (m *Manager) addPlayer(player *Player) {
+	if m.WaitingPlayer != nil {
+		match := CreateMatch(m.WaitingPlayer, player)
+		m.Matches[match.ID] = match
+	} else {
+		m.WaitingPlayer = player
+	}
 }
