@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,11 +19,33 @@ var (
 type Manager struct {
 	Matches       map[string]*Match
 	WaitingPlayer *Player
+	sync.RWMutex
+
+	handlers map[string]EventHandler
 }
 
 func NewManager() *Manager {
-	return &Manager{
-		Matches: make(map[string]*Match),
+	manager := &Manager{
+		Matches:  make(map[string]*Match),
+		handlers: make(map[string]EventHandler),
+	}
+
+	manager.setupHandlers()
+	return manager
+}
+
+func (m *Manager) setupHandlers() {
+	// m.handlers[]
+}
+
+func (m *Manager) routeEvent(event Event, match *Match, player *Player) error {
+	if handler, ok := m.handlers[event.Type]; !ok {
+		return errors.New("there is no such event")
+	} else {
+		if err := handler(event, match, player); err != nil {
+			return err
+		}
+		return nil
 	}
 }
 
@@ -39,9 +63,13 @@ func (m *Manager) serveWs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Manager) addPlayer(player *Player) {
+	m.Lock()
+	defer m.Unlock()
+
 	if m.WaitingPlayer != nil {
-		match := CreateMatch(m.WaitingPlayer, player)
+		match := CreateMatch(m, m.WaitingPlayer, player)
 		m.Matches[match.ID] = match
+		m.WaitingPlayer = nil
 	} else {
 		m.WaitingPlayer = player
 	}

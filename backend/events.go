@@ -7,4 +7,13 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-type EventHandler func(event Event, player *Player) error
+type EventHandler func(event Event, match *Match, player *Player) error
+
+const (
+	EventPlayMove = "play_move"
+)
+
+type PlayMoveEvent struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}

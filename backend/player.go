@@ -51,6 +51,17 @@ func (player *Player) ReadMessages() {
 			}
 			break
 		}
+
+		var request Event
+
+		if err := json.Unmarshal(payload, &request); err != nil {
+			log.Printf("Error marshalling event: %v", err)
+			break
+		}
+
+		if err := player.Match.Manager.routeEvent(request, player.Match, player); err != nil {
+			log.Println("error handling event: ", err)
+		}
 	}
 }
 

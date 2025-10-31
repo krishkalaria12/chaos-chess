@@ -9,6 +9,7 @@ import (
 
 type Match struct {
 	ID      string
+	Manager *Manager
 	Player1 *Player
 	Player2 *Player
 	Turn    string
@@ -16,7 +17,7 @@ type Match struct {
 	State   *chess.Game
 }
 
-func CreateMatch(player1 *Player, player2 *Player) *Match {
+func CreateMatch(manager *Manager, player1 *Player, player2 *Player) *Match {
 	if rand.Intn(2) == 0 {
 		player1.Color = "white"
 		player2.Color = "black"
@@ -30,6 +31,7 @@ func CreateMatch(player1 *Player, player2 *Player) *Match {
 		Player1: player1,
 		Player2: player2,
 		Turn:    "white",
+		Manager: manager,
 	}
 
 	player1.Match = match
@@ -39,4 +41,8 @@ func CreateMatch(player1 *Player, player2 *Player) *Match {
 	// go match.run()
 
 	return match
+}
+
+func (match *Match) runMatch() {
+
 }
