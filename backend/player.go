@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -18,6 +19,7 @@ type Player struct {
 	Match      *Match
 	Color      string
 	Egress     chan []byte // for outgoing messages
+	once       sync.Once
 }
 
 type PlayerList map[*Player]bool
@@ -32,7 +34,7 @@ func NewPlayer(conn *websocket.Conn, match *Match) *Player {
 
 func (player *Player) ReadMessages() {
 	defer func() {
-		// remove the player from the match
+		player.removePlayer()
 	}()
 
 	if err := player.Connection.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
@@ -55,19 +57,21 @@ func (player *Player) ReadMessages() {
 		var request Event
 
 		if err := json.Unmarshal(payload, &request); err != nil {
-			log.Printf("Error marshalling event: %v", err)
-			break
+			log.Printf("Error unmarshalling event: %v", err)
+			player.sendError("Invalid message format")
+			continue
 		}
 
 		if err := player.Match.Manager.routeEvent(request, player.Match, player); err != nil {
 			log.Println("error handling event: ", err)
+			player.sendError(err.Error())
 		}
 	}
 }
 
 func (player *Player) WriteMessages() {
 	defer func() {
-		// remove the player from the match
+		player.removePlayer()
 	}()
 
 	ticker := time.NewTicker(pingInterval)
@@ -109,4 +113,41 @@ func (player *Player) pongHandler(pongMsg string) error {
 	log.Println("pong")
 
 	return player.Connection.SetReadDeadline(time.Now().Add(pongWait))
+}
+
+func (player *Player) removePlayer() {
+	player.once.Do(func() {
+		close(player.Egress)
+
+		player.Connection.Close()
+
+		// If player wasn't matched yet, nothing else to cleanup
+		if player.Match == nil {
+			return
+		}
+
+		match := player.Match
+		manager := match.Manager
+
+		manager.Lock()
+		defer manager.Unlock()
+
+		var otherPlayer *Player
+		if match.Player1 == player {
+			match.Player1 = nil
+			otherPlayer = match.Player2
+		} else {
+			match.Player2 = nil
+			otherPlayer = match.Player1
+		}
+
+		player.Match = nil
+
+		if match.Player1 == nil && match.Player2 == nil {
+			delete(manager.Matches, match.ID)
+		} else if otherPlayer != nil {
+			otherPlayer.MatchCompleteHandler("You won! Opponent disconnected")
+			match.Won = otherPlayer
+		}
+	})
 }

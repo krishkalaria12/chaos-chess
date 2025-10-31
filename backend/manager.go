@@ -60,6 +60,10 @@ func (m *Manager) serveWs(w http.ResponseWriter, r *http.Request) {
 
 	player := NewPlayer(conn, nil)
 	m.addPlayer(player)
+
+	// player services
+	go player.ReadMessages()
+	go player.WriteMessages()
 }
 
 func (m *Manager) addPlayer(player *Player) {
