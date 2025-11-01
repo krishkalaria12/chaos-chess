@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"time"
 )
 
 type Event struct {
@@ -13,14 +15,20 @@ type Event struct {
 type EventHandler func(event Event, match *Match, player *Player) error
 
 const (
-	EventPlayMove      = "play_move"
-	EventError         = "error"
-	EventMatchComplete = "match_complete"
+	EventSendPlayMove    = "send_play_move"
+	EventReceivePlayMove = "receive_play_move"
+	EventError           = "error"
+	EventMatchComplete   = "match_complete"
 )
 
-type PlayMoveEvent struct {
+type SendPlayMoveEvent struct {
 	From string `json:"from"`
 	To   string `json:"to"`
+}
+
+type ReceivePlayMoveEvent struct {
+	SendPlayMoveEvent
+	Sent time.Time `json:"sent"`
 }
 
 type ErrorEvent struct {
@@ -31,60 +39,68 @@ type MatchCompleteEvent struct {
 	Message string `json:"message"`
 }
 
-func (player *Player) sendError(message string) {
-	errorEvent := ErrorEvent{
-		Message: message,
+func PlayMoveHandler(event Event, match *Match, player *Player) error {
+	var move SendPlayMoveEvent
+
+	if err := json.Unmarshal(event.Payload, &move); err != nil {
+		return fmt.Errorf("bad payload in request: %v", err)
 	}
 
-	payload, err := json.Marshal(errorEvent)
+	if player.Color != match.Turn {
+		return fmt.Errorf("not your turn")
+	}
+
+	moveStr := move.From + move.To
+	if err := match.State.MoveStr(moveStr); err != nil {
+		return fmt.Errorf("invalid move: %v", err)
+	}
+
+	if match.Turn == "white" {
+		match.Turn = "black"
+	} else {
+		match.Turn = "white"
+	}
+
+	var request ReceivePlayMoveEvent
+	request.From = move.From
+	request.To = move.To
+	request.Sent = time.Now()
+
+	data, err := json.Marshal(request)
 	if err != nil {
-		log.Printf("error marshalling error event: %v", err)
-		return
+		return fmt.Errorf("failed to marshal broadcast message: %v", err)
 	}
 
-	event := Event{
-		Type:    EventError,
-		Payload: payload,
-	}
+	var outgoingMove Event
+	outgoingMove.Payload = data
+	outgoingMove.Type = EventReceivePlayMove
 
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("error marshalling error event wrapper: %v", err)
-		return
+	var otherPlayer *Player
+	if match.Player1 == player {
+		otherPlayer = match.Player2
+	} else {
+		otherPlayer = match.Player1
 	}
 
 	select {
-	case player.Egress <- eventData:
+	case otherPlayer.Egress <- outgoingMove:
 	default:
-		log.Println("client egress channel full, dropping error message")
-	}
-}
-
-func (player *Player) MatchCompleteHandler(message string) {
-	matchCompleteEvent := MatchCompleteEvent{
-		Message: message,
+		log.Println("client egress channel full, dropping move message")
 	}
 
-	payload, err := json.Marshal(matchCompleteEvent)
-	if err != nil {
-		log.Printf("error marshalling match complete event: %v", err)
-		return
+	log.Printf("Player %s moved from %s to %s", player.Color, move.From, move.To)
+
+	// Check if game is over
+	outcome := match.State.Outcome()
+	if outcome != "*" {
+		match.Won = player
+		player.sendMatchComplete("You won!")
+		otherPlayer.sendMatchComplete("You lost!")
+
+		delete(match.Manager.Matches, match.ID)
+		player.Match = nil
+		otherPlayer.Match = nil
 	}
 
-	event := Event{
-		Type:    EventMatchComplete,
-		Payload: payload,
-	}
-
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("error marshalling match complete event wrapper: %v", err)
-		return
-	}
-
-	select {
-	case player.Egress <- eventData:
-	default:
-		log.Println("client egress channel full, dropping error message")
-	}
+	return nil
 }

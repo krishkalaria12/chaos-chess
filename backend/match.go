@@ -38,11 +38,11 @@ func CreateMatch(manager *Manager, player1 *Player, player2 *Player) *Match {
 	player2.Match = match
 
 	// start the match
-	// go match.run()
+	go match.runMatch()
 
 	return match
 }
 
 func (match *Match) runMatch() {
-
+	match.State = chess.NewGame()
 }

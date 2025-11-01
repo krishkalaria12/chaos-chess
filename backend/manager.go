@@ -35,7 +35,7 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) setupHandlers() {
-	// m.handlers[]
+	m.handlers[EventReceivePlayMove] = PlayMoveHandler
 }
 
 func (m *Manager) routeEvent(event Event, match *Match, player *Player) error {

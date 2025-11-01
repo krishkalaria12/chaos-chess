@@ -18,7 +18,7 @@ type Player struct {
 	Connection *websocket.Conn
 	Match      *Match
 	Color      string
-	Egress     chan []byte // for outgoing messages
+	Egress     chan Event // for outgoing messages
 	once       sync.Once
 }
 
@@ -28,7 +28,7 @@ func NewPlayer(conn *websocket.Conn, match *Match) *Player {
 	return &Player{
 		Connection: conn,
 		Match:      match,
-		Egress:     make(chan []byte),
+		Egress:     make(chan Event),
 	}
 }
 
@@ -146,7 +146,7 @@ func (player *Player) removePlayer() {
 		if match.Player1 == nil && match.Player2 == nil {
 			delete(manager.Matches, match.ID)
 		} else if otherPlayer != nil {
-			otherPlayer.MatchCompleteHandler("You won! Opponent disconnected")
+			otherPlayer.sendMatchComplete("You won! Opponent disconnected")
 			match.Won = otherPlayer
 		}
 	})
