@@ -13,6 +13,7 @@ var (
 	websocketUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
+		CheckOrigin:     checkOrigin,
 	}
 )
 
@@ -35,7 +36,7 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) setupHandlers() {
-	m.handlers[EventReceivePlayMove] = PlayMoveHandler
+	m.handlers[EventSendPlayMove] = PlayMoveHandler
 }
 
 func (m *Manager) routeEvent(event Event, match *Match, player *Player) error {
@@ -76,5 +77,16 @@ func (m *Manager) addPlayer(player *Player) {
 		m.WaitingPlayer = nil
 	} else {
 		m.WaitingPlayer = player
+	}
+}
+
+func checkOrigin(req *http.Request) bool {
+	origin := req.Header.Get("Origin")
+
+	switch origin {
+	case "http://localhost:3000":
+		return true
+	default:
+		return false
 	}
 }

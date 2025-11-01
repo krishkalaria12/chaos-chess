@@ -50,3 +50,28 @@ func (player *Player) sendMatchComplete(message string) {
 		log.Println("client egress channel full, dropping error message")
 	}
 }
+
+func (player *Player) sendMatchStart() {
+	matchStartEvent := MatchStartEvent{
+		Color:       player.Color,
+		Orientation: player.Color,
+		Position:    "start",
+	}
+
+	payload, err := json.Marshal(matchStartEvent)
+	if err != nil {
+		log.Printf("error marshalling match start event: %v", err)
+		return
+	}
+
+	event := Event{
+		Type:    EventMatchStart,
+		Payload: payload,
+	}
+
+	select {
+	case player.Egress <- event:
+	default:
+		log.Println("client egress channel full, dropping match start message")
+	}
+}

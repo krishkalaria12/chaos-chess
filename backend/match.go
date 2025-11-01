@@ -45,4 +45,8 @@ func CreateMatch(manager *Manager, player1 *Player, player2 *Player) *Match {
 
 func (match *Match) runMatch() {
 	match.State = chess.NewGame()
+
+	// Notify both players that the match has started
+	match.Player1.sendMatchStart()
+	match.Player2.sendMatchStart()
 }

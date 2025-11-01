@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/notnil/chess"
 )
 
 type Event struct {
@@ -17,6 +19,7 @@ type EventHandler func(event Event, match *Match, player *Player) error
 const (
 	EventSendPlayMove    = "send_play_move"
 	EventReceivePlayMove = "receive_play_move"
+	EventMatchStart      = "match_start"
 	EventError           = "error"
 	EventMatchComplete   = "match_complete"
 )
@@ -39,6 +42,12 @@ type MatchCompleteEvent struct {
 	Message string `json:"message"`
 }
 
+type MatchStartEvent struct {
+	Color       string `json:"color"`
+	Orientation string `json:"orientation"`
+	Position    string `json:"position"`
+}
+
 func PlayMoveHandler(event Event, match *Match, player *Player) error {
 	var move SendPlayMoveEvent
 
@@ -50,8 +59,21 @@ func PlayMoveHandler(event Event, match *Match, player *Player) error {
 		return fmt.Errorf("not your turn")
 	}
 
-	moveStr := move.From + move.To
-	if err := match.State.MoveStr(moveStr); err != nil {
+	// Find the valid move from the list of legal moves
+	var validMove *chess.Move
+	for _, m := range match.State.ValidMoves() {
+		if m.S1().String() == move.From && m.S2().String() == move.To {
+			validMove = m
+			break
+		}
+	}
+
+	if validMove == nil {
+		return fmt.Errorf("invalid move: no valid move from %s to %s", move.From, move.To)
+	}
+
+	// Execute the move
+	if err := match.State.Move(validMove); err != nil {
 		return fmt.Errorf("invalid move: %v", err)
 	}
 

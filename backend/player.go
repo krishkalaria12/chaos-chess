@@ -117,12 +117,10 @@ func (player *Player) pongHandler(pongMsg string) error {
 
 func (player *Player) removePlayer() {
 	player.once.Do(func() {
-		close(player.Egress)
-
-		player.Connection.Close()
-
-		// If player wasn't matched yet, nothing else to cleanup
+		// If player wasn't matched yet, just cleanup connection
 		if player.Match == nil {
+			close(player.Egress)
+			player.Connection.Close()
 			return
 		}
 
@@ -141,13 +139,18 @@ func (player *Player) removePlayer() {
 			otherPlayer = match.Player1
 		}
 
-		player.Match = nil
-
-		if match.Player1 == nil && match.Player2 == nil {
-			delete(manager.Matches, match.ID)
-		} else if otherPlayer != nil {
+		// Send win message to other player BEFORE closing this player's connection
+		if otherPlayer != nil {
 			otherPlayer.sendMatchComplete("You won! Opponent disconnected")
 			match.Won = otherPlayer
+			delete(manager.Matches, match.ID)
+			otherPlayer.Match = nil
 		}
+
+		player.Match = nil
+
+		// Now cleanup this player's connection
+		close(player.Egress)
+		player.Connection.Close()
 	})
 }
